@@ -1,174 +1,374 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import useLocalStorageState from "use-local-storage-state";
 import styled from "styled-components";
 import {
   Typography,
-  TextField,
   Button,
+  Grid,
+  Paper,
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Drawer,
   List,
   ListItem,
+  ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Checkbox,
+  Box,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import PersonIcon from '@mui/icons-material/Person';
 
-interface Todo {
+interface Booking {
   id: number;
-  text: string;
-  done: boolean;
+  day: string;
+  time: string;
+  comment: string;
 }
 
+interface UserProfile {
+  name: string;
+  email: string;
+  phone: string;
+  preferences: string;
+}
+
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+  },
+});
+
 const AppContainer = styled.div`
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  display: flex;
 `;
 
-const StyledButton = styled(Button)`
+const MainContent = styled.div`
+  flex-grow: 1;
+  padding: 2rem;
+  margin-left: 240px;
+`;
+
+const DrawerContent = styled.div`
+  width: 240px;
+`;
+
+const TimeSlot = styled(Paper)<{ isBooked?: boolean }>`
   && {
-    margin-top: 1rem;
+    padding: 0.5rem;
+    text-align: center;
+    cursor: pointer;
+    background-color: ${props => props.isBooked ? '#1a237e' : '#424242'};
+    &:hover {
+      background-color: ${props => props.isBooked ? '#1a237e' : '#616161'};
+    }
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
   }
 `;
 
-const StyledListItemText = styled(ListItemText)<{ done: boolean }>`
+const CompactTypography = styled(Typography)`
   && {
-    text-decoration: ${(props) => (props.done ? "line-through" : "none")};
+    font-size: 0.875rem;
+  }
+`;
+
+const CalendarContainer = styled(Paper)`
+  && {
+    padding: 1rem;
+    overflow-x: auto;
+  }
+`;
+
+const BookingCard = styled(Paper)`
+  && {
+    padding: 1rem;
+    margin-bottom: 1rem;
   }
 `;
 
 function App() {
-  const [todos, setTodos] = useLocalStorageState<Todo[]>("todos", {
+  const [bookings, setBookings] = useLocalStorageState<Booking[]>("bookings", {
     defaultValue: [],
   });
-  const [newTodo, setNewTodo] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editText, setEditText] = useState(""); // Add this line
+  const [userProfile, setUserProfile] = useLocalStorageState<UserProfile>("userProfile", {
+    defaultValue: {
+      name: "",
+      email: "",
+      phone: "",
+      preferences: "",
+    },
+  });
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [comment, setComment] = useState("");
+  const [currentPage, setCurrentPage] = useState<'calendar' | 'bookings' | 'profile'>('calendar');
 
-  useEffect(() => {
-    if (todos.length === 0) {
-      const boilerplateTodos = [
-        { id: 1, text: "Install Node.js", done: false },
-        { id: 2, text: "Install Cursor IDE", done: false },
-        { id: 3, text: "Log into Github", done: false },
-        { id: 4, text: "Fork a repo", done: false },
-        { id: 5, text: "Make changes", done: false },
-        { id: 6, text: "Commit", done: false },
-        { id: 7, text: "Deploy", done: false },
-      ];
-      setTodos(boilerplateTodos);
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const times = Array.from({ length: 15 }, (_, i) => `${i + 8}:00`);
+
+  const handleSlotClick = (day: string, time: string) => {
+    const isBooked = bookings.some(booking => booking.day === day && booking.time === time);
+    if (!isBooked) {
+      setSelectedDay(day);
+      setSelectedTime(time);
+      setComment("");
+      setIsDialogOpen(true);
     }
-  }, [todos, setTodos]);
+  };
 
-  const handleAddTodo = () => {
-    if (newTodo.trim() !== "") {
-      setTodos([
-        ...todos,
-        { id: Date.now(), text: newTodo.trim(), done: false },
+  const handleBooking = () => {
+    if (selectedDay && selectedTime) {
+      setBookings([
+        ...bookings,
+        {
+          id: Date.now(),
+          day: selectedDay,
+          time: selectedTime,
+          comment,
+        },
       ]);
-      setNewTodo("");
+      setIsDialogOpen(false);
     }
   };
 
-  const handleDeleteTodo = (id: number) => {
-    setTodos(todos.filter((todo) => todo.id !== id));
+  const isSlotBooked = (day: string, time: string) => {
+    return bookings.some(booking => booking.day === day && booking.time === time);
   };
 
-  const handleToggleTodo = (id: number) => {
-    setTodos(
-      todos.map((todo) =>
-        todo.id === id ? { ...todo, done: !todo.done } : todo
-      )
-    );
-  };
+  const renderCalendarPage = () => (
+    <>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Calendar Booking
+      </Typography>
+      
+      <CalendarContainer>
+        <Grid container spacing={1}>
+          <Grid item xs={1}>
+            <CompactTypography variant="subtitle2" align="center">Time</CompactTypography>
+          </Grid>
+          {days.map(day => (
+            <Grid item xs={2.2} key={day}>
+              <CompactTypography variant="subtitle2" align="center" sx={{ fontWeight: 'bold' }}>
+                {day}
+              </CompactTypography>
+            </Grid>
+          ))}
+        </Grid>
 
-  const handleEditTodo = (id: number) => {
-    setEditingId(id);
-    const todoToEdit = todos.find((todo) => todo.id === id);
-    if (todoToEdit) {
-      setEditText(todoToEdit.text);
-    }
-  };
+        {times.map(time => (
+          <Grid container spacing={1} key={time} sx={{ mt: 0.5 }}>
+            <Grid item xs={1}>
+              <CompactTypography align="center" sx={{ fontSize: '0.875rem' }}>
+                {time}
+              </CompactTypography>
+            </Grid>
+            {days.map(day => (
+              <Grid item xs={2.2} key={`${day}-${time}`}>
+                <TimeSlot 
+                  isBooked={isSlotBooked(day, time)}
+                  onClick={() => handleSlotClick(day, time)}
+                >
+                  {isSlotBooked(day, time) ? 'Booked' : 'Available'}
+                </TimeSlot>
+              </Grid>
+            ))}
+          </Grid>
+        ))}
+      </CalendarContainer>
+    </>
+  );
 
-  const handleUpdateTodo = (id: number) => {
-    if (editText.trim() !== "") {
-      setTodos(
-        todos.map((todo) =>
-          todo.id === id ? { ...todo, text: editText.trim() } : todo
-        )
-      );
-    }
-    setEditingId(null);
-    setEditText("");
-  };
+  const renderBookingsPage = () => (
+    <>
+      <Typography variant="h4" component="h1" gutterBottom>
+        My Bookings
+      </Typography>
+      {bookings.length === 0 ? (
+        <Typography variant="body1">No bookings yet</Typography>
+      ) : (
+        bookings.map(booking => (
+          <BookingCard key={booking.id}>
+            <Typography variant="h6">
+              {booking.day} at {booking.time}
+            </Typography>
+            <Typography variant="body1" color="textSecondary" sx={{ mt: 1 }}>
+              {booking.comment || 'No comment'}
+            </Typography>
+            <Button 
+              color="error" 
+              onClick={() => setBookings(bookings.filter(b => b.id !== booking.id))}
+              sx={{ mt: 2 }}
+            >
+              Cancel Booking
+            </Button>
+          </BookingCard>
+        ))
+      )}
+    </>
+  );
+
+  const renderProfilePage = () => (
+    <>
+      <Typography variant="h4" component="h1" gutterBottom>
+        User Profile
+      </Typography>
+      <Paper sx={{ p: 3, maxWidth: 600 }}>
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Name"
+              value={userProfile.name}
+              onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })}
+              variant="outlined"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={userProfile.email}
+              onChange={(e) => setUserProfile({ ...userProfile, email: e.target.value })}
+              variant="outlined"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Phone"
+              value={userProfile.phone}
+              onChange={(e) => setUserProfile({ ...userProfile, phone: e.target.value })}
+              variant="outlined"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Booking Preferences"
+              multiline
+              rows={4}
+              value={userProfile.preferences}
+              onChange={(e) => setUserProfile({ ...userProfile, preferences: e.target.value })}
+              variant="outlined"
+              helperText="Enter any special requirements or preferences for your bookings"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Button 
+              variant="contained" 
+              color="primary"
+              onClick={() => alert('Profile updated!')}
+              fullWidth
+            >
+              Save Changes
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
+    </>
+  );
 
   return (
-    <AppContainer>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Todo List
-      </Typography>
-      <TextField
-        fullWidth
-        variant="outlined"
-        label="New Todo"
-        value={newTodo}
-        onChange={(e) => setNewTodo(e.target.value)}
-        onKeyPress={(e) => e.key === "Enter" && handleAddTodo()}
-        autoFocus // Add this line to enable autofocus
-      />
-      <StyledButton
-        variant="contained"
-        color="primary"
-        fullWidth
-        onClick={handleAddTodo}
-      >
-        Add Todo
-      </StyledButton>
-      <List>
-        {todos.map((todo) => (
-          <ListItem key={todo.id} dense>
-            <Checkbox
-              edge="start"
-              checked={todo.done}
-              onChange={() => handleToggleTodo(todo.id)}
-            />
-            {editingId === todo.id ? (
-              <TextField
-                fullWidth
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                onBlur={() => handleUpdateTodo(todo.id)}
-                onKeyPress={(e) =>
-                  e.key === "Enter" && handleUpdateTodo(todo.id)
-                }
-                autoFocus
-              />
-            ) : (
-              <StyledListItemText primary={todo.text} done={todo.done} />
-            )}
-            <ListItemSecondaryAction>
-              <IconButton
-                edge="end"
-                aria-label="edit"
-                onClick={() => handleEditTodo(todo.id)}
+    <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
+      <AppContainer>
+        <Drawer
+          variant="permanent"
+          sx={{
+            width: 240,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: 240,
+              boxSizing: 'border-box',
+            },
+          }}
+        >
+          <DrawerContent>
+            <List>
+              <ListItem 
+                button 
+                onClick={() => setCurrentPage('calendar')}
+                selected={currentPage === 'calendar'}
               >
-                <EditIcon />
-              </IconButton>
-              <IconButton
-                edge="end"
-                aria-label="delete"
-                onClick={() => handleDeleteTodo(todo.id)}
+                <ListItemIcon>
+                  <CalendarMonthIcon />
+                </ListItemIcon>
+                <ListItemText primary="Calendar" />
+              </ListItem>
+              <ListItem 
+                button 
+                onClick={() => setCurrentPage('bookings')}
+                selected={currentPage === 'bookings'}
               >
-                <DeleteIcon />
-              </IconButton>
-            </ListItemSecondaryAction>
-          </ListItem>
-        ))}
-      </List>
-    </AppContainer>
+                <ListItemIcon>
+                  <FormatListBulletedIcon />
+                </ListItemIcon>
+                <ListItemText primary="My Bookings" />
+              </ListItem>
+              <ListItem 
+                button 
+                onClick={() => setCurrentPage('profile')}
+                selected={currentPage === 'profile'}
+              >
+                <ListItemIcon>
+                  <PersonIcon />
+                </ListItemIcon>
+                <ListItemText primary="Profile" />
+              </ListItem>
+            </List>
+          </DrawerContent>
+        </Drawer>
+
+        <MainContent>
+          {currentPage === 'calendar' ? renderCalendarPage() 
+            : currentPage === 'bookings' ? renderBookingsPage()
+            : renderProfilePage()}
+        </MainContent>
+
+        <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)}>
+          <DialogTitle>Book Time Slot</DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Typography variant="body1">
+                  {selectedDay} at {selectedTime}
+                </Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  label="Comment"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  variant="outlined"
+                  margin="normal"
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBooking} variant="contained" color="primary">
+              Book
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </AppContainer>
+    </ThemeProvider>
   );
 }
 
